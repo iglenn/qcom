@@ -13,9 +13,11 @@ implicit none
 !     
 !
 !	all of the below are GLOBAL in SCOPE
-integer::jt,kt,kw
+
+integer :: jt, kt, kw
 parameter (jt = 600, kt = 120)
 parameter (kw = kt)
+
 real*8:: dy, dz
 real*8:: g, c_p, R, L_f, c_s, H, L
 real*8:: theta_top, theta_bot
@@ -36,6 +38,7 @@ real*8, dimension(1:jt+2, 1:kt+2, 1:2) :: fv, fpi_1
 
 real*8:: check, tbub, esbub, supersat, stab_fac, RH, rnd, sgn
 
+! open files to write output
 open(unit=50,file='gate2D_plume_602x122_6km_qc.txt') 
 open(unit=51,file='gate2D_plume_602x122_6km_qw.txt')
 open(unit=52,file='gate2D_plume_602x122_6km_thetal.txt')
