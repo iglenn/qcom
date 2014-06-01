@@ -46,24 +46,36 @@ open(unit=53,file='gate2D_plume_602x122_6km_w.txt')
 open(unit=54,file='gate2D_plume_602x122_6km_pi_1.txt')
 open(unit=55,file='gate2D_plume_602x122_6km_pbar.txt')
 
-!     Assign parameters for run
-check = 0.0
-g = 9.81
-c_p = 1004.
-R = 287.
-L_f = 2500000.
-! speed of sound
-c_s = 50. ! m/s
+!     Set parameters for run
 H = 6000. ! m, the height of the simulated domain
 L = 30000. ! the horizontal domain length
 dz = H / dble(kt) ! 
 dy = L / dble(jt) !
+
+dt = 0.1 ! timestep, seconds
+TMAX = 7200. ! s, the run time of the simulation
+ITTMAX = INT( TMAX / dt ) ! the approx number of timesteps needed
+
+write(*,*) "horizontal resolution="
+write(*,*) jt
+write(*,*) "vertical resolution="
+write(*,*) kt
 
 write(*,*) "dz="
 write(*,*) dz
 
 write(*,*) "dy="
 write(*,*) dy
+
+g = 9.81
+c_p = 1004.
+R = 287.
+L_f = 2500000.
+! speed of sound
+c_s = 50. ! m/s
+K_th = 50. ! m^2 s^{-1}, the eddy diffusivity for theta
+K_v = 50. ! m^2 s^{-1}, the eddy diffusivity for v
+K_w = 50. ! m^2 s^{-1}, the eddy diffusivity for w
 
 ! Define the heights, z, at the theta grid point levels
 z_theta(:) = (/ ( dble( ii * dz - ( dz / 2. ) ) , ii = 0, kt+1 ) /)
@@ -97,32 +109,23 @@ pbar = 1000. * ( pi_0 ** ( c_p / R ) ) !mb
 
 ! redefine qv_0
 ! set the RH to a constant value
-RH = 0.9
-do K = 1, kt + 2
-    tbub = theta_0(K) * pi_0(K)
-    esbub = ES( tbub )
-    qv_0(K) = RH * ( 0.622 * esbub / ( 100 * pbar(K) - esbub ) )
-end do
+!RH = 0.9
+!do K = 1, kt + 2
+!    tbub = theta_0(K) * pi_0(K)
+!    esbub = ES( tbub )
+!    qv_0(K) = RH * ( 0.622 * esbub / ( 100 * pbar(K) - esbub ) )
+!end do
 
 ! now recalculate things that depend on qv_0
-theta_v0 = theta_0 * ( 1 + 0.61 * qv_0 )
+!theta_v0 = theta_0 * ( 1 + 0.61 * qv_0 )
 
-do kk = 2, kt+2
-     pi_0(kk) = pi_0(kk-1) - dble(dz) * g / ( c_p * ( theta_v0(kk) + theta_v0(kk-1) ) / 2. )
-end do
-pi_0(kt+2) = pi_0(kt+1)
-pbar = 1000. * ( pi_0 ** ( c_p / R ) ) !mb
+!do kk = 2, kt+2
+!     pi_0(kk) = pi_0(kk-1) - dble(dz) * g / ( c_p * ( theta_v0(kk) + theta_v0(kk-1) ) / 2. )
+!end do
+!pi_0(kt+2) = pi_0(kt+1)
+!pbar = 1000. * ( pi_0 ** ( c_p / R ) ) !mb
 
 
-dt = 0.1 ! timestep, seconds
-!write(*,*) pi_0
-!write(*,*) qv_0
-
-K_th = 50. ! m^2 s^{-1}, the eddy diffusivity for theta
-K_v = 50. ! m^2 s^{-1}, the eddy diffusivity for v
-K_w = 50. ! m^2 s^{-1}, the eddy diffusivity for w
-TMAX = 7200. ! s, the run time of the simulation
-ITTMAX = INT( TMAX / dt ) ! the approx number of timesteps needed
 
 !     initialize the main part of the domain
 DO iJ = 2, jt+1
