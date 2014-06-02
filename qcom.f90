@@ -1,170 +1,107 @@
+module global_vars
+! here we declare the arrays and parameters that will be accessible 
+! by the main program and all subroutines
+
+! grid
+integer, parameter :: jt = 600
+integer, parameter :: kt = 120
+integer, parameter :: kw = kt
+
+! time
+real, parameter :: dt = 0.1 ! timestep, s
+real, parameter :: tmax = 7200. ! run time, s
+integer, parameter :: ittmax = int( tmax / dt ) ! approx number of timesteps
+integer ITT ! the timestep index
+
+! space
+real, parameter :: H = 6000. ! m, the height of the simulated domain
+real, parameter :: L = 30000. ! the horizontal domain length
+
+real, parameter :: dz = H / real( kt )
+real, parameter :: dy = L / real( jt ) 
+
+! vectors along z dimension
+real, dimension(1:kt+2):: theta_0
+real, dimension(1:kt+2):: pi_0
+real, dimension(1:kt+2):: qv_0
+real, dimension(1:kt+2):: theta_v0
+real, dimension(1:kt+2):: pbar
+
+! large 2D arrays
+real, dimension(1:jt+2, 1:kt+2) :: theta_l, theta
+real, dimension(1:jt+2, 1:kt+2) :: qw, qc, qv
+real, dimension(1:jt+2, 1:kt+2) :: pi_1
+real, dimension(1:jt+2, 1:kw+2) :: w
+real, dimension(1:jt+2, 1:kw+2) :: v
+
+real, dimension(1:jt+2, 1:kt+2, 1:2) :: ftheta_l
+real, dimension(1:jt+2, 1:kt+2, 1:2) :: fqw
+real, dimension(1:jt+2, 1:kt+2, 1:2) :: fpi_1
+real, dimension(1:jt+2, 1:kw+2, 1:2) :: fw
+real, dimension(1:jt+2, 1:kw+2, 1:2) :: fv
+
+! physical constants
+real, parameter :: g = 9.81 ! gravity, m/s2
+real, parameter :: c_p = 1004. ! specific heat, J/kg/K
+real, parameter :: R = 287. ! gas constant, J/kg/K
+real, parameter :: L_f = 2.5104e+06 ! Latent heat of condensation, J/kg
+
+real, parameter :: c_s = 50. ! speed of sound, m/s
+
+real, parameter :: K_th = 50. ! eddy diffusivity of theta, m2/s
+real, parameter :: K_v = 50. ! eddy diffusivity of v, m2/s
+real, parameter :: K_w = 50. ! eddy diffusivity of w, m2/s
+
+! parameters to be assigned later, useful to be global
+real theta_top
+real theta_bot
+real A
+real B
+
+! frequently used indicies
+integer J
+integer K
+integer N1
+integer N2
+
+
 program qcom
 implicit none
-!     pgf90 -c print.f
-!     pgf90 -o qcom QCOM.f90 print.o
+
+!     pgf90 -o qcom qcom.f90 
 !     ./qcom
 
-!     v. 2 (Sept 2000) --
-!     Array subscript ranges now start with 0 instead of 1.	
-
-!     v. 3 (Feb 2009) --
-!     All comments now start with !
-!     Added f90 declarations and procedures.
-!     
-!
-!	all of the below are GLOBAL in SCOPE
-
-integer :: jt, kt, kw
-parameter (jt = 600, kt = 120)
-parameter (kw = kt)
-
-real*8:: dy, dz
-real*8:: g, c_p, R, L_f, c_s, H, L
-real*8:: theta_top, theta_bot
-real*8, dimension(1:kt+2):: z_theta, theta_0, pi_0, qv_0, theta_v0, pbar
-integer:: ii, izt, kk
-real*8:: dt
-real*8:: K_th, K_v, K_w
-real*8:: TMAX
-integer:: ITTMAX
-integer:: iJ, iyp, izp
-integer:: J, K, ITT, N1, N2, ITTNOW
-real*8:: A, B
-
-real*8, dimension(1:jt+2, 1:kt+2) :: theta, theta_l, qv, qc, qw
-real*8, dimension(1:jt+2, 1:kw+2) :: w, v, pi_1
-real*8, dimension(1:jt+2, 1:kw+2, 1:2) :: fw, fqw, ftheta_l
-real*8, dimension(1:jt+2, 1:kt+2, 1:2) :: fv, fpi_1
-
-real*8:: check, tbub, esbub, supersat, stab_fac, RH, rnd, sgn
 
 ! open files to write output
-open(unit=50,file='gate2D_plume_602x122_6km_qc.txt') 
-open(unit=51,file='gate2D_plume_602x122_6km_qw.txt')
-open(unit=52,file='gate2D_plume_602x122_6km_thetal.txt')
-open(unit=53,file='gate2D_plume_602x122_6km_w.txt')
-open(unit=54,file='gate2D_plume_602x122_6km_pi_1.txt')
-open(unit=55,file='gate2D_plume_602x122_6km_pbar.txt')
-
-!     Set parameters for run
-H = 6000. ! m, the height of the simulated domain
-L = 30000. ! the horizontal domain length
-dz = H / dble(kt) ! 
-dy = L / dble(jt) !
-
-dt = 0.1 ! timestep, seconds
-TMAX = 7200. ! s, the run time of the simulation
-ITTMAX = INT( TMAX / dt ) ! the approx number of timesteps needed
+open(unit=50,file='gate2D_plume_602x122_6km_qc.dat') 
+open(unit=51,file='gate2D_plume_602x122_6km_qw.dat')
+open(unit=52,file='gate2D_plume_602x122_6km_thetal.dat')
+open(unit=53,file='gate2D_plume_602x122_6km_w.dat')
+open(unit=54,file='gate2D_plume_602x122_6km_pi_1.dat')
+open(unit=55,file='gate2D_plume_602x122_6km_pbar.dat')
 
 write(*,*) "horizontal resolution="
 write(*,*) jt
 write(*,*) "vertical resolution="
 write(*,*) kt
-
 write(*,*) "dz="
 write(*,*) dz
-
 write(*,*) "dy="
 write(*,*) dy
 
-g = 9.81
-c_p = 1004.
-R = 287.
-L_f = 2500000.
-! speed of sound
-c_s = 50. ! m/s
-K_th = 50. ! m^2 s^{-1}, the eddy diffusivity for theta
-K_v = 50. ! m^2 s^{-1}, the eddy diffusivity for v
-K_w = 50. ! m^2 s^{-1}, the eddy diffusivity for w
-
-! Define the heights, z, at the theta grid point levels
-z_theta(:) = (/ ( dble( ii * dz - ( dz / 2. ) ) , ii = 0, kt+1 ) /)
-
-! Define the initial atmospheric state
-! these vectors must match the z grid, kt+2 elements long
-open(unit = 23, file = 'theta0_gigaLES.txt')
-open(unit = 24, file = 'qv0_gigaLES.txt')
-
-do K=1,kt+2
-     read(23,*) theta_0(K)
-     read(24,*) qv_0(K)
-end do
-
-! factor to reduce the stability
-stab_fac = 0.
-theta_0 = theta_0 - stab_fac * ( theta_0 - MINVAL( theta_0 ) )
-
-theta_bot = ( theta_0(1) + theta_0(2) ) / 2.
-theta_top = theta_0(kt+2)
-
-qv_0 = qv_0 / 1000. ! switch units kg/kg
-theta_v0 = theta_0 * ( 1 + 0.61 * qv_0 )
-
-pi_0(1) = ( 1015. / 1000. ) ** (R/c_p) ! set base press 1015mb
-do kk = 2, kt+2
-     pi_0(kk) = pi_0(kk-1) - dble(dz) * g / ( c_p * ( theta_v0(kk) + theta_v0(kk-1) ) / 2. )
-end do
-pi_0(kt+2) = pi_0(kt+1)
-pbar = 1000. * ( pi_0 ** ( c_p / R ) ) !mb
-
-! redefine qv_0
-! set the RH to a constant value
-!RH = 0.9
-!do K = 1, kt + 2
-!    tbub = theta_0(K) * pi_0(K)
-!    esbub = ES( tbub )
-!    qv_0(K) = RH * ( 0.622 * esbub / ( 100 * pbar(K) - esbub ) )
-!end do
-
-! now recalculate things that depend on qv_0
-!theta_v0 = theta_0 * ( 1 + 0.61 * qv_0 )
-
-!do kk = 2, kt+2
-!     pi_0(kk) = pi_0(kk-1) - dble(dz) * g / ( c_p * ( theta_v0(kk) + theta_v0(kk-1) ) / 2. )
-!end do
-!pi_0(kt+2) = pi_0(kt+1)
-!pbar = 1000. * ( pi_0 ** ( c_p / R ) ) !mb
-
-
-
-!     initialize the main part of the domain
-DO iJ = 2, jt+1
-     theta_l(iJ, 1:kt+2) = theta_0
-     qv(iJ, 1:kt+2) = qv_0
-END DO
-
-theta = theta_l
-qw = qv
-
-v(1:jt+2, 1:kt+2) = 0.
-w(1:jt+2, 1:kt+2) = 0.
-pi_1(1:jt+2, 1:kt+2) = 0.
-qc(1:jt+2, 1:kt+2) = 0.
-
-fv(1:jt+2, 1:kt+2, 1:2) = 0.
-fw(1:jt+2, 1:kt+2, 1:2) = 0.
-ftheta_l(1:jt+2, 1:kt+2, 1:2) = 0.
-fqw(1:jt+2, 1:kt+2, 1:2) = 0.
-fpi_1(1:jt+2, 1:kt+2, 1:2) = 0.
+! initialize domain
+CALL init
 
 ! initialization complete, call bound
 CALL BOUND(theta_bot, theta_top, theta_l, qw, w, v, pi_1, qv, qc, theta, jt, kt)
 
-! do an initial perturbation
-CALL RANDOM_SEED ! initializes the PRNG
-izp = 15 ! z(15) = 1km altitude
-do iyp = 290, 310 ! 1 km wide in the center, dy = 50m
-    CALL RANDOM_NUMBER(rnd)
-    theta_l(iyp,izp) = theta_l(iyp,izp) + 1. * rnd
-    CALL RANDOM_NUMBER(rnd)
-    w(iyp,izp) = w(iyp,izp) + 1. * rnd
-    CALL RANDOM_NUMBER(rnd)
-    qw(iyp,izp) = qw(iyp,izp) + 0.001 * rnd
-end do
+! do any initial perturbation
+
+CALL perturb
+
 
 ! write initial state of variables
       
-     ! write(50,1) check
 DO J=1,jt+2
       write(50,1) qc(J,1:kt+2)
       write(51,1) qw(J,1:kt+2) 
@@ -200,12 +137,10 @@ CALL BOUND(theta_bot,theta_top,theta_l,qw,w,v,pi_1,qv,qc,theta,jt,kt)
 A =   3. / 2. 
 B = - 1. / 2. 
 
-ITTNOW = ITT  + 1
-
-DO ITT = ITTNOW, ITTMAX
+DO ITT = 2, ittmax
 
 if (MOD(ITT,100)==0) then
-    write(*,*) (100*ITT/ITTMAX)
+    write(*,*) (100*ITT/ittmax)
 end if
 
 
@@ -274,6 +209,106 @@ end if
 end do ! time loop
      
 contains
+
+SUBROUTINE init()
+
+use global_vars
+
+IMPLICIT NONE
+
+real stab_fac ! factor to reduce stability
+real RH ! relative humidity
+
+! Define the initial atmospheric state
+! these vectors must match the z grid, kt+2 elements long
+open(unit = 23, file = 'theta0_gigaLES.txt')
+open(unit = 24, file = 'qv0_gigaLES.txt')
+
+do K=1,kt+2
+     read(23,*) theta_0(K)
+     read(24,*) qv_0(K)
+end do
+
+! factor to reduce the stability
+stab_fac = 0.
+theta_0 = theta_0 - stab_fac * ( theta_0 - MINVAL( theta_0 ) )
+
+theta_bot = ( theta_0(1) + theta_0(2) ) / 2.
+theta_top = theta_0(kt+2)
+
+qv_0 = qv_0 / 1000. ! switch units kg/kg
+theta_v0 = theta_0 * ( 1 + 0.61 * qv_0 )
+
+pi_0(1) = ( 1015. / 1000. ) ** ( R / c_p ) ! set base pressure (dz/2 underground) to be 1015mb
+do K = 2, kt+2
+     pi_0(K) = pi_0(K-1) - dz * g / ( c_p * ( theta_v0(K) + theta_v0(K-1) ) / 2. )
+end do
+pi_0(kt+2) = pi_0(kt+1)
+pbar = 1000. * ( pi_0 ** ( c_p / R ) ) !mb
+
+! set the RH to a constant value? redefine qv_0
+!RH = 0.9
+!do K = 1, kt + 2
+!    tbub = theta_0(K) * pi_0(K)
+!    esbub = ES( tbub )
+!    qv_0(K) = RH * ( 0.622 * esbub / ( 100 * pbar(K) - esbub ) )
+!end do
+
+! now recalculate things that depend on qv_0
+!theta_v0 = theta_0 * ( 1 + 0.61 * qv_0 )
+!do K = 2, kt+2
+!     pi_0(K) = pi_0(K-1) - dble(dz) * g / ( c_p * ( theta_v0(K) + theta_v0(K-1) ) / 2. )
+!end do
+!pi_0(kt+2) = pi_0(kt+1)
+!pbar = 1000. * ( pi_0 ** ( c_p / R ) ) !mb
+
+
+!     initialize the main part of the domain
+DO J = 2, jt+1
+     theta_l(J, 1:kt+2) = theta_0
+     qv(J, 1:kt+2) = qv_0
+END DO
+
+theta = theta_l
+qw = qv
+
+v(1:jt+2, 1:kt+2) = 0.
+w(1:jt+2, 1:kt+2) = 0.
+pi_1(1:jt+2, 1:kt+2) = 0.
+qc(1:jt+2, 1:kt+2) = 0.
+
+fv(1:jt+2, 1:kt+2, 1:2) = 0.
+fw(1:jt+2, 1:kt+2, 1:2) = 0.
+ftheta_l(1:jt+2, 1:kt+2, 1:2) = 0.
+fqw(1:jt+2, 1:kt+2, 1:2) = 0.
+fpi_1(1:jt+2, 1:kt+2, 1:2) = 0.
+
+END SUBROUTINE init
+
+SUBROUTINE perturb
+
+use global_vars
+
+IMPLICIT NONE
+integer iyp
+integer izp
+real tbub
+real esbub
+real supersat
+real rnd
+
+CALL RANDOM_SEED ! initializes the PRNG
+izp = 15 ! z(15) = 1km altitude
+do iyp = 290, 310 ! 1 km wide in the center, dy = 50m
+    CALL RANDOM_NUMBER(rnd)
+    theta_l(iyp,izp) = theta_l(iyp,izp) + 1. * rnd
+    CALL RANDOM_NUMBER(rnd)
+    w(iyp,izp) = w(iyp,izp) + 1. * rnd
+    CALL RANDOM_NUMBER(rnd)
+    qw(iyp,izp) = qw(iyp,izp) + 0.001 * rnd
+end do
+
+END SUBROUTINE perturb
 
 SUBROUTINE RCALC(N2,ITT,jt,kt)
 IMPLICIT NONE
