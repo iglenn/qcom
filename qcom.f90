@@ -185,7 +185,7 @@ B = 0.
 N1 = MOD ( ITT    , 2 ) + 1
 N2 = MOD ( ITT - 1, 2 ) + 1
 
-CALL RCALC(N2,ITT,check,jt,kt) ! calculate forcing terms
+CALL RCALC(N2,ITT,jt,kt) ! calculate forcing terms
 CALL AB (N1,N2,A,B,jt,kt) ! update variables using a time scheme
 CALL BOUND(theta_bot,theta_top,theta_l,qw,w,v,pi_1,qv,qc,theta,jt,kt)
 
@@ -253,7 +253,7 @@ end do
 N1 = MOD ( ITT    , 2 ) + 1
 N2 = MOD ( ITT - 1, 2 ) + 1
 
-CALL RCALC(N2,ITT,check,jt,kt) ! calculate forcing terms
+CALL RCALC(N2,ITT,jt,kt) ! calculate forcing terms
 CALL AB (N1,N2,A,B,jt,kt) ! update variables using a time scheme
 CALL BOUND(theta_bot,theta_top,theta_l,qw,w,v,pi_1,qv,qc,theta,jt,kt)
 
@@ -275,10 +275,9 @@ end do ! time loop
      
 contains
 
-SUBROUTINE RCALC(N2,ITT,test,jt,kt)
+SUBROUTINE RCALC(N2,ITT,jt,kt)
 IMPLICIT NONE
 integer,intent(IN)::N2,ITT,jt,kt
-real*8,intent(OUT)::test
 real*8::div_behind_v,div_ahead_v,ddiv_dy,div_above_w,div_below_w,ddiv_dz,alpha_d
 real*8 d1,d2,d3,d4 ! dummy variables
 integer:: J,K
@@ -301,12 +300,7 @@ CALL ADJUST(d1,d2,d3,d4)
 theta(J,K)=d1
 qv(J,K)=d2
 qc(J,K)=d3 
-!write(*,*) d3
-!write(*,*) (qw(J,K)-qv(J,K)-qc(J,K))
-! test: at this point, qw should be unchanged
-!test=test+qw(J,K)-qv(J,K)-qc(J,K)
-!qw(J,K)=qv(J,K)+qc(J,K)
-!theta_l(J,K)=theta(J,K)-(L_f/(c_p*pi_0(K)))*qc(J,K)
+
 
 end do
 end do
