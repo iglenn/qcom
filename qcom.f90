@@ -64,13 +64,11 @@ integer K
 integer N1
 integer N2
 
-
 program qcom
 implicit none
 
 !     pgf90 -o qcom qcom.f90 
 !     ./qcom
-
 
 ! open files to write output
 open(unit=50,file='gate2D_plume_602x122_6km_qc.dat') 
@@ -89,6 +87,9 @@ write(*,*) dz
 write(*,*) "dy="
 write(*,*) dy
 
+! begin
+ITT = 1 ! itt is time step index
+
 ! initialize domain
 CALL init
 
@@ -96,12 +97,9 @@ CALL init
 CALL BOUND(theta_bot, theta_top, theta_l, qw, w, v, pi_1, qv, qc, theta, jt, kt)
 
 ! do any initial perturbation
-
 CALL perturb
 
-
 ! write initial state of variables
-      
 DO J=1,jt+2
       write(50,1) qc(J,1:kt+2)
       write(51,1) qw(J,1:kt+2) 
@@ -111,10 +109,6 @@ DO J=1,jt+2
 END DO
       1 format(122E17.9)
       write(55,1) pbar(1:kt+2)
-      
-
-
-ITT = 1 ! itt is time step index
 
 !     USE FORWARD SCHEME TO do first step
 A = 1.
@@ -126,11 +120,6 @@ CALL RCALC(N2,ITT,jt,kt) ! calculate forcing terms
 CALL AB (N1,N2,A,B,jt,kt) ! update variables using a time scheme
 CALL BOUND(theta_bot,theta_top,theta_l,qw,w,v,pi_1,qv,qc,theta,jt,kt)
 
-! write ITT=1 variables
-!DO J=2,jt+1
-!write(50,1) qc(J,1:kt+2)
-!write(51,1) w(J,1:kt+2)
-!END DO
 
 !     ADAMS - BASHFORTH TWO - LEVEL SCHEME
 
@@ -140,50 +129,13 @@ B = - 1. / 2.
 DO ITT = 2, ittmax
 
 if (MOD(ITT,100)==0) then
-    write(*,*) (100*ITT/ittmax)
+    write(*,*) (100*ITT/ittmax) ! displays simulation progress
 end if
 
-
-! release a bubble
+! make any perturbation
 !if (MOD(ITT,6000)==0) then ! every 10 minutes
-
-do iyp=290,310 ! that's 1km at 50m res
-do izp=10,30 ! that's 1km at 50m z resolution 
-theta_l(iyp,izp)=theta_l(iyp,izp)+1.*COS((3.14159/2.)&
-*(0.5*(((dble(iyp)*dy-15000.)/500.)**2.)+0.5*(((dble(izp)*dz-1000.)/500.)**2))**0.5)**2;
-
-tbub = theta_l(iyp,izp) * pi_0(izp)
-esbub = ES( tbub )
-! define the initial supersaturation of the bubble
-supersat = 1.0
-qw(iyp,izp) = supersat * ( 0.622 * esbub / ( 100 * pbar(izp) - esbub ) )
-
-!qw(iyp,izp)=qw(iyp,izp)+0.004*COS((3.14159/2.)&
-!*(0.5*(((dble(iyp)*dy-15000.)/500.)**2.)+0.5*(((dble(izp)*dz-1000.)/500.)**2))**0.5)**2;
-
-!w(iyp,izp)=w(iyp,izp)+2.*COS((3.14159/2.)&
-!*(0.5*(((dble(iyp)*dy-15000.)/500.)**2.)+0.5*(((dble(izp)*dz-1000.)/500.)**2))**0.5)**2;
-end do
-end do
+!CALL perturb
 !end if
-
-! randomly perturb a section
-! every 1 m
-!if (MOD(ITT,600)==0) then
-
-!CALL RANDOM_SEED ! initializes the PRNG
-!izp = 15 ! z(15) = 1km altitude
-!do iyp = 290, 310 ! 1 km wide in the center, dy = 50m
-!    CALL RANDOM_NUMBER(rnd)
-!    theta_l(iyp,izp) = theta_l(iyp,izp) + 1. * rnd
-!    CALL RANDOM_NUMBER(rnd)
-!    w(iyp,izp) = w(iyp,izp) + 1. * rnd
-!    CALL RANDOM_NUMBER(rnd)
-!    qw(iyp,izp) = qw(iyp,izp) + 0.001 * rnd
-!end do
-
-!end if
-
 
 N1 = MOD ( ITT    , 2 ) + 1
 N2 = MOD ( ITT - 1, 2 ) + 1
@@ -191,7 +143,6 @@ N2 = MOD ( ITT - 1, 2 ) + 1
 CALL RCALC(N2,ITT,jt,kt) ! calculate forcing terms
 CALL AB (N1,N2,A,B,jt,kt) ! update variables using a time scheme
 CALL BOUND(theta_bot,theta_top,theta_l,qw,w,v,pi_1,qv,qc,theta,jt,kt)
-
 
 ! write variables every 60 seconds
 if (MOD(ITT,600)==0) then
@@ -204,7 +155,7 @@ DO J=1,jt+2
     write(54,1) pi_1(J,1:kt+2)
 END DO
 
-end if
+end if ! write
 
 end do ! time loop
      
@@ -228,17 +179,19 @@ do K=1,kt+2
      read(23,*) theta_0(K)
      read(24,*) qv_0(K)
 end do
+! correct units
+qv_0 = qv_0 / 1000. ! kg/kg
 
-! factor to reduce the stability
+! factor to reduce the stability (optional)
 stab_fac = 0.
 theta_0 = theta_0 - stab_fac * ( theta_0 - MINVAL( theta_0 ) )
 
+! assign theta top and bottom values
 theta_bot = ( theta_0(1) + theta_0(2) ) / 2.
 theta_top = theta_0(kt+2)
 
-qv_0 = qv_0 / 1000. ! switch units kg/kg
+! define pressure based on theta_v0
 theta_v0 = theta_0 * ( 1 + 0.61 * qv_0 )
-
 pi_0(1) = ( 1015. / 1000. ) ** ( R / c_p ) ! set base pressure (dz/2 underground) to be 1015mb
 do K = 2, kt+2
      pi_0(K) = pi_0(K-1) - dz * g / ( c_p * ( theta_v0(K) + theta_v0(K-1) ) / 2. )
@@ -253,7 +206,6 @@ pbar = 1000. * ( pi_0 ** ( c_p / R ) ) !mb
 !    esbub = ES( tbub )
 !    qv_0(K) = RH * ( 0.622 * esbub / ( 100 * pbar(K) - esbub ) )
 !end do
-
 ! now recalculate things that depend on qv_0
 !theta_v0 = theta_0 * ( 1 + 0.61 * qv_0 )
 !do K = 2, kt+2
@@ -285,7 +237,7 @@ fpi_1(1:jt+2, 1:kt+2, 1:2) = 0.
 
 END SUBROUTINE init
 
-SUBROUTINE perturb
+SUBROUTINE perturb()
 
 use global_vars
 
@@ -297,16 +249,41 @@ real esbub
 real supersat
 real rnd
 
-CALL RANDOM_SEED ! initializes the PRNG
-izp = 15 ! z(15) = 1km altitude
-do iyp = 290, 310 ! 1 km wide in the center, dy = 50m
-    CALL RANDOM_NUMBER(rnd)
-    theta_l(iyp,izp) = theta_l(iyp,izp) + 1. * rnd
-    CALL RANDOM_NUMBER(rnd)
-    w(iyp,izp) = w(iyp,izp) + 1. * rnd
-    CALL RANDOM_NUMBER(rnd)
-    qw(iyp,izp) = qw(iyp,izp) + 0.001 * rnd
+! release a bubble
+
+do iyp = 290, 310 ! that's 1km at 50m res
+do izp = 10, 30 ! that's 1km at 50m z resolution 
+
+theta_l(iyp, izp) = theta_l(iyp, izp) + 1. * COS( ( 3.14159 / 2. ) &
+* ( 0.5 * ( ( ( real(iyp) * dy - 15000. ) / 500. ) ** 2. ) &
++ 0.5 * ( ( ( real(izp) * dz - 1000. ) / 500. ) ** 2 ) ) ** 0.5 ) ** 2
+
+tbub = theta_l(iyp,izp) * pi_0(izp)
+esbub = ES( tbub )
+! define the initial supersaturation of the bubble
+supersat = 1.0
+qw(iyp,izp) = supersat * ( 0.622 * esbub / ( 100 * pbar(izp) - esbub ) )
+
+!qw(iyp,izp)=qw(iyp,izp)+0.004*COS((3.14159/2.)&
+!*(0.5*(((dble(iyp)*dy-15000.)/500.)**2.)+0.5*(((dble(izp)*dz-1000.)/500.)**2))**0.5)**2;
+
+!w(iyp,izp)=w(iyp,izp)+2.*COS((3.14159/2.)&
+!*(0.5*(((dble(iyp)*dy-15000.)/500.)**2.)+0.5*(((dble(izp)*dz-1000.)/500.)**2))**0.5)**2;
 end do
+end do
+
+
+! randomly perturb a section
+!CALL RANDOM_SEED ! initializes the PRNG
+!izp = 15 ! z(15) = 1km altitude
+!do iyp = 290, 310 ! 1 km wide in the center, dy = 50m
+!    CALL RANDOM_NUMBER(rnd)
+!    theta_l(iyp,izp) = theta_l(iyp,izp) + 1. * rnd
+!    CALL RANDOM_NUMBER(rnd)
+!    w(iyp,izp) = w(iyp,izp) + 1. * rnd
+!    CALL RANDOM_NUMBER(rnd)
+!    qw(iyp,izp) = qw(iyp,izp) + 0.001 * rnd
+!end do
 
 END SUBROUTINE perturb
 
