@@ -2,7 +2,7 @@ module global_vars
 ! here we declare the arrays and parameters that will be accessible 
 ! by the main program and all subroutines
 
-! grid
+! Arakawa c-grid
 integer, parameter :: jt = 600
 integer, parameter :: kt = 120
 integer, parameter :: kw = kt
@@ -21,22 +21,21 @@ real, parameter :: dz = H / real( kt )
 real, parameter :: dy = L / real( jt ) 
 
 ! vectors along z dimension
-real, dimension(1:kt+2):: theta_0
-real, dimension(1:kt+2):: pi_0
+real, dimension(1:kt+2):: theta_0, theta_v0
 real, dimension(1:kt+2):: qv_0
-real, dimension(1:kt+2):: theta_v0
-real, dimension(1:kt+2):: pbar
+real, dimension(1:kw+2):: pi_0
+real, dimension(1:kw+2):: pbar
 
 ! large 2D arrays
 real, dimension(1:jt+2, 1:kt+2) :: theta_l, theta
 real, dimension(1:jt+2, 1:kt+2) :: qw, qc, qv
-real, dimension(1:jt+2, 1:kt+2) :: pi_1
+real, dimension(1:jt+2, 1:kw+2) :: pi_1
 real, dimension(1:jt+2, 1:kw+2) :: w
 real, dimension(1:jt+2, 1:kw+2) :: v
 
 real, dimension(1:jt+2, 1:kt+2, 1:2) :: ftheta_l
 real, dimension(1:jt+2, 1:kt+2, 1:2) :: fqw
-real, dimension(1:jt+2, 1:kt+2, 1:2) :: fpi_1
+real, dimension(1:jt+2, 1:kw+2, 1:2) :: fpi_1
 real, dimension(1:jt+2, 1:kw+2, 1:2) :: fw
 real, dimension(1:jt+2, 1:kw+2, 1:2) :: fv
 
@@ -94,7 +93,7 @@ ITT = 1 ! itt is time step index
 CALL init
 
 ! initialization complete, call bound
-CALL BOUND(theta_bot, theta_top, theta_l, qw, w, v, pi_1, qv, qc, theta, jt, kt)
+CALL bound
 
 ! do any initial perturbation
 CALL perturb
@@ -110,18 +109,18 @@ END DO
       1 format(122E17.9)
       write(55,1) pbar(1:kt+2)
 
-!     USE FORWARD SCHEME TO do first step
+! USE FORWARD SCHEME TO do first step
+! ADAMS - BASHFORTH coefficients A and B
 A = 1.
 B = 0.
 N1 = MOD ( ITT    , 2 ) + 1
 N2 = MOD ( ITT - 1, 2 ) + 1
 
-CALL RCALC(N2,ITT,jt,kt) ! calculate forcing terms
-CALL AB (N1,N2,A,B,jt,kt) ! update variables using a time scheme
-CALL BOUND(theta_bot,theta_top,theta_l,qw,w,v,pi_1,qv,qc,theta,jt,kt)
+CALL rcalc ! calculate forcing terms
+CALL AB ! update variables using a time scheme
+CALL bound
 
-
-!     ADAMS - BASHFORTH TWO - LEVEL SCHEME
+! ADAMS - BASHFORTH TWO - LEVEL SCHEME
 
 A =   3. / 2. 
 B = - 1. / 2. 
@@ -140,9 +139,9 @@ end if
 N1 = MOD ( ITT    , 2 ) + 1
 N2 = MOD ( ITT - 1, 2 ) + 1
 
-CALL RCALC(N2,ITT,jt,kt) ! calculate forcing terms
-CALL AB (N1,N2,A,B,jt,kt) ! update variables using a time scheme
-CALL BOUND(theta_bot,theta_top,theta_l,qw,w,v,pi_1,qv,qc,theta,jt,kt)
+CALL rcalc ! calculate forcing terms
+CALL AB ! update variables using a time scheme
+CALL bound
 
 ! write variables every 60 seconds
 if (MOD(ITT,600)==0) then
@@ -202,9 +201,7 @@ pbar = 1000. * ( pi_0 ** ( c_p / R ) ) !mb
 ! set the RH to a constant value? redefine qv_0
 !RH = 0.9
 !do K = 1, kt + 2
-!    tbub = theta_0(K) * pi_0(K)
-!    esbub = ES( tbub )
-!    qv_0(K) = RH * ( 0.622 * esbub / ( 100 * pbar(K) - esbub ) )
+!    qv_0(K) = RH * ( 0.622 * ES( theta_0(K) * pi_0(K) ) / ( 100 * pbar(K) - ES( theta_0(K) * pi_0(K) ) ) )
 !end do
 ! now recalculate things that depend on qv_0
 !theta_v0 = theta_0 * ( 1 + 0.61 * qv_0 )
@@ -254,8 +251,9 @@ real rnd
 do iyp = 290, 310 ! that's 1km at 50m res
 do izp = 10, 30 ! that's 1km at 50m z resolution 
 
-theta_l(iyp, izp) = theta_l(iyp, izp) + 1. * COS( ( 3.14159 / 2. ) &
-* ( 0.5 * ( ( ( real(iyp) * dy - 15000. ) / 500. ) ** 2. ) &
+theta_l(iyp, izp) = theta_l(iyp, izp) &
++ 1. * COS( ( 3.14159 / 2. ) * ( & 
+0.5 * ( ( ( real(iyp) * dy - 15000. ) / 500. ) ** 2. ) &
 + 0.5 * ( ( ( real(izp) * dz - 1000. ) / 500. ) ** 2 ) ) ** 0.5 ) ** 2
 
 tbub = theta_l(iyp,izp) * pi_0(izp)
@@ -264,11 +262,16 @@ esbub = ES( tbub )
 supersat = 1.0
 qw(iyp,izp) = supersat * ( 0.622 * esbub / ( 100 * pbar(izp) - esbub ) )
 
-!qw(iyp,izp)=qw(iyp,izp)+0.004*COS((3.14159/2.)&
-!*(0.5*(((dble(iyp)*dy-15000.)/500.)**2.)+0.5*(((dble(izp)*dz-1000.)/500.)**2))**0.5)**2;
+!qw(iyp, izp) = qw(iyp, izp) &
+!+ 0.001 * COS( ( 3.14159 / 2. ) * ( & 
+!0.5 * ( ( ( real(iyp) * dy - 15000. ) / 500. ) ** 2. ) &
+!+ 0.5 * ( ( ( real(izp) * dz - 1000. ) / 500. ) ** 2 ) ) ** 0.5 ) ** 2
 
-!w(iyp,izp)=w(iyp,izp)+2.*COS((3.14159/2.)&
-!*(0.5*(((dble(iyp)*dy-15000.)/500.)**2.)+0.5*(((dble(izp)*dz-1000.)/500.)**2))**0.5)**2;
+!w(iyp, izp) = w(iyp, izp) &
+!+ 1. * COS( ( 3.14159 / 2. ) * ( & 
+!0.5 * ( ( ( real(iyp) * dy - 15000. ) / 500. ) ** 2. ) &
+!+ 0.5 * ( ( ( real(izp) * dz - 1000. ) / 500. ) ** 2 ) ) ** 0.5 ) ** 2
+
 end do
 end do
 
@@ -287,14 +290,66 @@ end do
 
 END SUBROUTINE perturb
 
-SUBROUTINE RCALC(N2,ITT,jt,kt)
-IMPLICIT NONE
-integer,intent(IN)::N2,ITT,jt,kt
-real*8::div_behind_v,div_ahead_v,ddiv_dy,div_above_w,div_below_w,ddiv_dz,alpha_d
-real*8 d1,d2,d3,d4 ! dummy variables
-integer:: J,K
+SUBROUTINE bound()
 
-alpha_d=0.0 !alpha_d=0.1*dt*c_s*c_s
+use global_vars
+
+IMPLICIT NONE
+
+! conduction, constant boundary temp
+! this is effectively a large scale forcing
+!theta_l( 2:jt+1, 1) = 2. * theta_bot - theta_l( 2:jt+1, 2)
+!theta_l( 2:jt+1, kt+2) = 2. * theta_top - theta_l( 2:jt+1, kt+1)
+
+! roof layer equals level below
+theta_l( 1:jt+2, kt+2) = theta_l( 1:jt+2, kt+1)
+theta( 1:jt+2, kt+2) = theta( 1:jt+2, kt+1)
+qv( 1:jt+2, kt+2) = qv( 1:jt+2, kt+1)
+qc( 1:jt+2, kt+2) = qc( 1:jt+2, kt+1)
+qw( 1:jt+2, kt+2) = qw( 1:jt+2, kt+1)
+pi_1( 1:jt+2, kt+2) = pi_1( 1:jt+2, kt+1)
+
+! free slip boundary
+v(2:jt+1,1)=v(2:jt+1,2)
+v(2:jt+1,kt+2)=v(2:jt+1,kt+1) 
+! the term above used to =v(2:jt+1,kt+1)
+! ground and roof condition for w
+w(2:jt+1,1:2)=0. ! layer 1 is underground, layer 2 is ground level
+w(2:jt+1,kt+2)=0.
+        
+! should find new qv0, theta_0 ??? otherwise isn't buoyancy forcing out of touch?
+! for ik=1:kt+2
+!     qv_0(ik)=mean(qv(2:jt+1,ik));
+! end
+        
+! periodic boundaries
+theta_l(1,1:kt+2)=theta_l(jt+1,1:kt+2)
+theta_l(jt+2,1:kt+2)=theta_l(2,1:kt+2)
+qw(1,1:kt+2)=qw(jt+1,1:kt+2)
+qw(jt+2,1:kt+2)=qw(2,1:kt+2)
+w(1,1:kt+2)=w(jt+1,1:kt+2)
+w(jt+2,1:kt+2)=w(2,1:kt+2)
+v(1,1:kt+2)=v(jt+1,1:kt+2)
+v(jt+2,1:kt+2)=v(2,1:kt+2)
+pi_1(1,1:kt+2)=pi_1(jt+1,1:kt+2)
+pi_1(jt+2,1:kt+2)=pi_1(2,1:kt+2)
+               
+qv(1,1:kt+2)=qv(jt+1,1:kt+2)
+qv(jt+2,1:kt+2)=qv(2,1:kt+2)
+qc(1,1:kt+2)=qc(jt+1,1:kt+2)
+qc(jt+2,1:kt+2)=qc(2,1:kt+2)
+theta(1,1:kt+2)=theta(jt+1,1:kt+2)
+theta(jt+2,1:kt+2)=theta(2,1:kt+2)
+
+END SUBROUTINE bound
+
+SUBROUTINE rcalc
+
+use global_vars
+
+IMPLICIT NONE
+
+real d1,d2,d3,d4 ! dummy variables
 
 !CALCULATES FORCING TERMS FOR V(J,K), ETC.; STORES THEM IN FV(J,K,N2)
 
@@ -302,18 +357,16 @@ alpha_d=0.0 !alpha_d=0.1*dt*c_s*c_s
 
 do K = 2, kt+1
 do J = 2, jt+1
-! use qc to get theta from theta_l
-theta(J,K)=theta_l(J,K)+(L_f/(c_p*pi_0(K)))*qc(J,K)
-d1=theta(J,K)
-d2=qw(J,K) - qc(J,K)
-d3=qc(J,K)
-d4=100.*pbar(K)
-CALL ADJUST(d1,d2,d3,d4)
-theta(J,K)=d1
-qv(J,K)=d2
-qc(J,K)=d3 
-
-
+      ! use qc to get theta from theta_l
+      theta(J,K) = theta_l(J,K) + ( L_f / ( c_p * pi_0(K) ) ) * qc(J,K)
+      d1 = theta(J,K)
+      d2 = qw(J,K) - qc(J,K)
+      d3 = qc(J,K)
+      d4 = 100. * pbar(K)
+      CALL ADJUST(d1,d2,d3,d4)
+      theta(J,K) = d1
+      qv(J,K) = d2
+      qc(J,K) = d3 
 end do
 end do
 
@@ -325,7 +378,6 @@ fv(J,K,N2) = -v(J,K)*((v(J+1,K)-v(J-1,K))/(2.*dy)) &
                  - c_p*theta_v0(K)*(pi_1(J,K)-pi_1(J-1,K))/dy &
                  + K_v*((v(J,K+1)-2.*v(J,K)+v(J,K-1))/(dz*dz) &
                  + (v(J+1,K)-2.*v(J,K)+v(J-1,K))/(dy*dy)) 
-!                 + alpha_d*ddiv_dy
  
 fw(J,K,N2) = -w(J,K)*((w(J,K+1)-w(J,K-1))/(2.*dz)) &
                  -((v(J,K-1)+v(J,K))/2.)*((w(J,K)-w(J-1,K))/dy)/2. &
@@ -337,7 +389,6 @@ fw(J,K,N2) = -w(J,K)*((w(J,K+1)-w(J,K-1))/(2.*dz)) &
                  - ((qv_0(K)+qv_0(K-1))/2.))-((qc(J,K)+qc(J,K-1))/2.)) &
                  + K_w*((w(J,K+1)-2.*w(J,K)+w(J,K-1))/(dz*dz) &
                  + (w(J+1,K)-2.*w(J,K)+w(J-1,K))/(dy*dy)) 
-!                + alpha_d*ddiv_dz
              
 ftheta_l(J,K,N2) = -v(J,K)*((theta_l(J,K)-theta_l(J-1,K))/dy)/2. &
                  -v(J+1,K)*((theta_l(J+1,K)-theta_l(J,K))/dy)/2. &
@@ -363,13 +414,15 @@ END DO
 END DO
 
 
-END SUBROUTINE RCALC
+END SUBROUTINE rcalc
 
-SUBROUTINE AB(N1,N2,A,B,jt,kt)
+SUBROUTINE AB
+
+use global_vars
+
 IMPLICIT NONE
-integer,intent(IN)::N1,N2,jt,kt
-real*8,intent(IN)::A,B
-integer::ij,ik
+integer ij, ik
+
 !     THE FOLLOWING LOOP UPDATES V USING EITHER THE FORWARD OR THE ADAMS-BASHFORTH 
 !     SCHEME DEPENDING ON THE VALUES OF A, B.  
 !     SUBSCRIPT N2 OF FV ALWAYS REFERS TO THE MOST RECENTLY CALCULATED VALUES FOR FV.
@@ -385,60 +438,7 @@ qw(ij,ik)=qw(ij,ik)+dt*(A*fqw(ij,ik,N2)+B*fqw(ij,ik,N1))
 END DO
 END DO
 
-!     ETC (update w, theta, and pi)
-
 END SUBROUTINE AB
-
-SUBROUTINE BOUND(theta_bot,theta_top,theta_l,qw,w,v,pi_1,qv,qc,theta,jt,kt)
-IMPLICIT NONE
-real*8,intent(IN)::theta_bot,theta_top
-integer,intent(IN)::jt,kt
-real*8,dimension(1:jt+2,1:kt+2),intent(INOUT)::theta_l,qw,w,v,pi_1,qv,qc,theta
-
-
-      ! conduction, constant boundary temp
-theta_l(2:jt+1,1)=2.*theta_bot-theta_l(2:jt+1,2)
-theta_l(1:jt+2,kt+2)=theta_l(1:jt+2,kt+1)
-theta(1:jt+2,kt+2)=theta(1:jt+2,kt+1)
-
-qv(1:jt+2,kt+2)=qv(1:jt+2,kt+1)
-qc(1:jt+2,kt+2)=qc(1:jt+2,kt+1)
-qw(1:jt+2,kt+2)=qw(1:jt+2,kt+1)
-pi_1(1:jt+2,kt+2)=pi_1(1:jt+2,kt+1)
-!        theta_l(2:jt+1,kt+2)=2.*theta_top-theta_l(2:jt+1,kt+1)
-        ! free slip boundary
-        v(2:jt+1,1)=v(2:jt+1,2)
-        v(2:jt+1,kt+2)=v(2:jt+1,kt+1) 
-        ! the term above used to =v(2:jt+1,kt+1)
-        ! ground and roof condition for w
-        w(2:jt+1,1:2)=0.
-        w(2:jt+1,kt+2)=0.
-        
-        ! should find new qv0 ???
-!         for ik=1:kt+2
-!             qv_0(ik)=mean(qv(2:jt+1,ik));
-!         end
-        
-        ! periodic boundary
-        theta_l(1,1:kt+2)=theta_l(jt+1,1:kt+2)
-        theta_l(jt+2,1:kt+2)=theta_l(2,1:kt+2)
-        qw(1,1:kt+2)=qw(jt+1,1:kt+2)
-        qw(jt+2,1:kt+2)=qw(2,1:kt+2)
-        w(1,1:kt+2)=w(jt+1,1:kt+2)
-        w(jt+2,1:kt+2)=w(2,1:kt+2)
-        v(1,1:kt+2)=v(jt+1,1:kt+2)
-        v(jt+2,1:kt+2)=v(2,1:kt+2)
-        pi_1(1,1:kt+2)=pi_1(jt+1,1:kt+2)
-        pi_1(jt+2,1:kt+2)=pi_1(2,1:kt+2)
-               
-        qv(1,1:kt+2)=qv(jt+1,1:kt+2)
-        qv(jt+2,1:kt+2)=qv(2,1:kt+2)
-        qc(1,1:kt+2)=qc(jt+1,1:kt+2)
-        qc(jt+2,1:kt+2)=qc(2,1:kt+2)
-        theta(1,1:kt+2)=theta(jt+1,1:kt+2)
-        theta(jt+2,1:kt+2)=theta(2,1:kt+2)
-
-END SUBROUTINE BOUND
 
 SUBROUTINE ADJUST ( TH, QV, QC, PBAR_in )
 IMPLICIT NONE
