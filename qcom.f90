@@ -1,4 +1,4 @@
-module global_vars
+MODULE global_vars
 ! here we declare the arrays and parameters that will be accessible 
 ! by the main program and all subroutines
 
@@ -62,6 +62,8 @@ integer J
 integer K
 integer N1
 integer N2
+
+END MODULE global_vars
 
 PROGRAM qcom
 
