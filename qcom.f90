@@ -476,16 +476,18 @@ IMPLICIT NONE
 !     GAM corrected!
 !
 
-real*8,intent(IN)::PBAR_in
-real*8,intent(INOUT)::TH,QV,QC
-real*8::THSTAR,TH1,QVSTAR,QV1,QCSTAR,esd
-integer:: IT
-real*8::PIBAR,GAM,Tstar,es1,ALPHA,THFAC,QVSAT,QW1,QC1,QVS1,DTH,QVS
-      REAL * 8 HLF,CP,rgas,pzero,ITMAX,DTCRIT
-      DATA HLF/2.500E+06/,CP/1004.5/
-      DATA rgas/287.058/,pzero/100000./
-      DATA ITMAX/2/,DTCRIT/0.001/
-!
+real, intent(IN) :: PBAR_in
+real, intent(INOUT) :: TH, QV, QC
+real THSTAR,TH1,QVSTAR,QV1,QCSTAR,esd
+integer IT
+real PIBAR,GAM,Tstar,es1,ALPHA,THFAC,QVSAT,QW1,QC1,QVS1,DTH,QVS
+real, parameter :: HLF = 2.5104e+06 ! Latent heat of condensation, J/kg
+real, parameter :: CP = 1004. ! specific hear, J/kg/K
+real, parameter :: rgas = 287. ! gas constant, J/kg/K
+real, parameter :: pzero = 1.0e+05 ! reference pressure, J/m3 = Pa
+real, parameter :: DTCRIT = 0.001 ! tolerance, K
+integer, parameter :: ITMAX = 2 ! max iterations
+
 !     PBAR IS A ( HYDROSTATIC ) REFERENCE PRESSURE FIELD.
 !
       IT = 1
@@ -508,7 +510,7 @@ GAM = HLF / ( CP * PIBAR )
       QV1 = QVSAT + ALPHA * ( TH1 - THSTAR )
 !     statement below gives same result as one above
 !     QV1 = QVSTAR - ( TH1 - THSTAR ) / GAM
-QC1=QVSTAR-QV1+QCSTAR      
+      QC1=QVSTAR-QV1+QCSTAR      
       !QW1 = QV + QC
       !QC1 = QW1 - QV1
 !
@@ -518,8 +520,8 @@ QC1=QVSTAR-QV1+QCSTAR
         QC1 = 0.
         QV1 = QVSTAR+QCSTAR
         TH1 = THSTAR + GAM * ( QVSTAR - QV1 )
-        esd = ES((TH1*PIBAR))
-        QVS1 = 0.622/(PBAR_in-esd)*esd
+        esd = ES( ( TH1 * PIBAR ) )
+        QVS1 = 0.622 / ( PBAR_in -esd ) * esd
         !QVS1 = QVSAT + alpha * ( TH1 - THSTAR )
       ENDIF
 !
@@ -546,70 +548,73 @@ QC1=QVSTAR-QV1+QCSTAR
 !
 END SUBROUTINE ADJUST
 
-DOUBLE PRECISION FUNCTION ES ( T )
+FUNCTION ES ( T )
 IMPLICIT NONE
 !
 !     LOWE'S FORMULA FOR SATURATION VAPOR PRESSURE ( PA ).
 !     T IS IN DEGREES KELVIN.
-real*8,intent(IN)::T
-real*8::TC,X
-real*8,DIMENSION(1:7)::C
-!
-      !DIMENSION C(7)
-      DATA C/6.107800, &
+real, intent(IN) :: T
+real TC, X
+integer jj
+real, dimension(1:7) :: C
+
+C = ( /6.107800, &
        4.436519E-01, &
        1.428946E-02, &
        2.650648E-04, &
        3.031240E-06, &
        2.034081E-08, &
-       6.136821E-11/
-!
-      TC = T - 273.16
-!
-      IF ( TC .LT. - 50. ) TC = - 50.
-!
-      X = C(7)
-!
-      DO 1 J = 1,6
-    1 X = X * TC + C(7-J)
-!
-      ES = X * 100.
-!
-      RETURN
+       6.136821E-11/ )
+       
+TC = T - 273.16
+if ( TC .LT. - 50. ) then
+      TC = - 50.
+end if
+
+X = C(7)
+do jj = 1, 6
+      X = X * TC + C(7-jj)
+end do
+
+ES = X * 100.
+RETURN
+      
 END FUNCTION ES
       
-DOUBLE PRECISION FUNCTION DESDT ( T )
+FUNCTION DESDT ( T )
 IMPLICIT NONE
 !
 !     LOWE'S FORMULA FOR THE DERIVATIVE OF
 !     SATURATION VAPOR PRESSURE WITH RESPECT TO TEMPERATURE.
 !     ES IS IN PASCALS. T IS IN DEGREES KELVIN.
 !
-      !DIMENSION D(7)
 
-real*8,intent(IN)::T
-real*8::TC,X
-real*8,DIMENSION(1:7)::D
-      DATA D/4.438100E-01, &
+real,intent(IN) :: T
+real TC, X
+integer jj
+real, dimension(1:7) :: D
+
+D = ( /4.438100E-01, &
        2.857003E-02, &
        7.938054E-04, &
        1.215215E-05, &
        1.036561E-07, &
        3.532422E-10, &
-     - 7.090245E-13/
-!
-      TC = T - 273.16
-!
-      IF ( TC .LT. - 50. ) TC = - 50.
-!
-      X = D(7)
-!
-      DO 1 J = 1,6
-    1 X = X * TC + D(7-J)
-!
-      DESDT = X * 100.
-!
-      RETURN
+     - 7.090245E-13/ )
+
+TC = T - 273.16
+if ( TC .LT. - 50. ) then
+TC = - 50.
+end if
+
+X = D(7)
+do jj = 1, 6
+      X = X * TC + D(7-jj)
+end do
+
+DESDT = X * 100.
+RETURN
+
 END FUNCTION DESDT
       
 end program qcom
