@@ -106,7 +106,7 @@ DO J=1,jt+2
       write(53,1) w(J,1:kt+2)
       write(54,1) pi_1(J,1:kt+2)
 END DO
-      1 format(122E17.9)
+      1 format(122E17.9) ! watch out, # should probably match kt+2
       write(55,1) pbar(1:kt+2)
 
 ! USE FORWARD SCHEME TO do first step
