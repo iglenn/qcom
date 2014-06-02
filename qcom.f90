@@ -63,19 +63,15 @@ integer K
 integer N1
 integer N2
 
-program qcom
-implicit none
+PROGRAM qcom
 
+USE global_vars
+
+IMPLICIT NONE
 !     pgf90 -o qcom qcom.f90 
 !     ./qcom
 
-! open files to write output
-open(unit=50,file='gate2D_plume_602x122_6km_qc.dat') 
-open(unit=51,file='gate2D_plume_602x122_6km_qw.dat')
-open(unit=52,file='gate2D_plume_602x122_6km_thetal.dat')
-open(unit=53,file='gate2D_plume_602x122_6km_w.dat')
-open(unit=54,file='gate2D_plume_602x122_6km_pi_1.dat')
-open(unit=55,file='gate2D_plume_602x122_6km_pbar.dat')
+integer, parameter rcount = 1 ! record counter for writing direct access
 
 write(*,*) "horizontal resolution="
 write(*,*) jt
@@ -85,6 +81,22 @@ write(*,*) "dz="
 write(*,*) dz
 write(*,*) "dy="
 write(*,*) dy
+
+! open files to write output, the 4 in recl signifies 4 bits per byte
+open(unit = 50, file='gate2D_bub_602x122_6km_qc.dat', &
+form='unformatted', access='direct', recl = (jt+2)*(kt+2)*4, action='write')
+open(unit = 51, file='gate2D_bub_602x122_6km_qw.dat', &
+form='unformatted', access='direct', recl = (jt+2)*(kt+2)*4, action='write')
+open(unit = 52, file='gate2D_bub_602x122_6km_thetal.dat', &
+form='unformatted', access='direct', recl = (jt+2)*(kt+2)*4, action='write')
+open(unit = 53, file='gate2D_bub_602x122_6km_w.dat', &
+form='unformatted', access='direct', recl = (jt+2)*(kt+2)*4, action='write')
+open(unit = 54, file='gate2D_bub_602x122_6km_pi1.dat', &
+form='unformatted', access='direct', recl = (jt+2)*(kt+2)*4, action='write')
+
+open(unit = 55, file='gate2D_bub_602x122_6km_pbar.dat', &
+form='unformatted', access='direct', recl = (kt+2)*4, action='write')
+
 
 ! begin
 ITT = 1 ! itt is time step index
@@ -99,15 +111,12 @@ CALL bound
 CALL perturb
 
 ! write initial state of variables
-DO J=1,jt+2
-      write(50,1) qc(J,1:kt+2)
-      write(51,1) qw(J,1:kt+2) 
-      write(52,1) theta_l(J,1:kt+2)
-      write(53,1) w(J,1:kt+2)
-      write(54,1) pi_1(J,1:kt+2)
-END DO
-      1 format(122E17.9) ! watch out, # should probably match kt+2
-      write(55,1) pbar(1:kt+2)
+write(50, rec = ITT) qc
+write(51, rec = ITT) qw
+write(52, rec = ITT) theta_l
+write(53, rec = ITT) w
+write(54, rec = ITT) pi_1
+write(55, rec = ITT) pbar
 
 ! USE FORWARD SCHEME TO do first step
 ! ADAMS - BASHFORTH coefficients A and B
@@ -145,24 +154,27 @@ CALL bound
 
 ! write variables every 60 seconds
 if (MOD(ITT,600)==0) then
-
-DO J=1,jt+2
-    write(50,1) qc(J,1:kt+2)
-    write(51,1) qw(J,1:kt+2)
-    write(52,1) theta_l(J,1:kt+2)
-    write(53,1) w(J,1:kt+2)
-    write(54,1) pi_1(J,1:kt+2)
-END DO
+rcount = rcount + 1
+! write initial state of variables
+write(50, rec = rcount) qc
+write(51, rec = rcount) qw
+write(52, rec = rcount) theta_l
+write(53, rec = rcount) w
+write(54, rec = rcount) pi_1
+write(55, rec = rcount) pbar
 
 end if ! write
 
 end do ! time loop
-     
+
+write(*,*) "Number of records written:"
+write(*,*) rcount
+
 contains
 
 SUBROUTINE init()
 
-use global_vars
+USE global_vars
 
 IMPLICIT NONE
 
@@ -617,4 +629,4 @@ RETURN
 
 END FUNCTION DESDT
       
-end program qcom
+END PROGRAM qcom
