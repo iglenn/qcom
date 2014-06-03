@@ -1,7 +1,7 @@
 SUBROUTINE entrainment ()
 
 use global_vars
-! only cldarea(jt, kt, 2) ? 
+ 
 implicit none
 
 ! the 4 main arrays
@@ -19,7 +19,16 @@ real tb_edges ( jt, kt+1 )
 
 ! first find qsat(T,p)
 
+qdiff = qw(J,K) - ( 0.622 * ES( theta_l(J, K) * pi_0(K) ) / ( 100 * pbar(K) - ES( theta_l(J, K) * pi_0(K) ) ) )
+
+
 do J = 1, jt+1
   do K = 1, kt+1
-    interp_d(J, K) = 
+    interp_d(J, K) = ( ( qw(J,K) - ( 0.622 * ES( theta_l(J, K) * pi_0(K) ) / ( 100 * pbar(K) - ES( theta_l(J, K) * pi_0(K) ) ) ) ) &
+      + ( qw(J+1,K) - ( 0.622 * ES( theta_l(J+1, K) * pi_0(K) ) / ( 100 * pbar(K) - ES( theta_l(J+1, K) * pi_0(K) ) ) ) ) &
+      + ( qw(J,K+1) - ( 0.622 * ES( theta_l(J, K+1) * pi_0(K+1) ) / ( 100 * pbar(K+1) - ES( theta_l(J, K+1 * pi_0(K+1) ) ) ) ) &
+      + ( qw(J+1,K+1) - ( 0.622 * ES( theta_l(J+1, K+1) * pi_0(K+1) ) / ( 100 * pbar(K+1) - ES( theta_l(J+1, K+1) * pi_0(K+1) ) ) ) ) ) &
+      / 4
+  end do
+end do
 
