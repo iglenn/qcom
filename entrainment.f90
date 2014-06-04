@@ -16,12 +16,6 @@ real tb_edges ( jt, kt+1 )
 ! for example, d cannot be set equal to qc because qc cannot have values less than zero
 ! after Dawe and Austin (2011) we define d as q_diff which is the excess of total water
 ! over the saturation specific humidity
-
-! first find qsat(T,p)
-
-qdiff = qw(J,K) - ( 0.622 * ES( theta_l(J, K) * pi_0(K) ) / ( 100 * pbar(K) - ES( theta_l(J, K) * pi_0(K) ) ) )
-
-
 do J = 1, jt+1
   do K = 1, kt+1
     interp_d(J, K) = ( ( qw(J,K) - ( 0.622 * ES( theta_l(J, K) * pi_0(K) ) / ( 100 * pbar(K) - ES( theta_l(J, K) * pi_0(K) ) ) ) ) &
@@ -29,6 +23,44 @@ do J = 1, jt+1
       + ( qw(J,K+1) - ( 0.622 * ES( theta_l(J, K+1) * pi_0(K+1) ) / ( 100 * pbar(K+1) - ES( theta_l(J, K+1 * pi_0(K+1) ) ) ) ) &
       + ( qw(J+1,K+1) - ( 0.622 * ES( theta_l(J+1, K+1) * pi_0(K+1) ) / ( 100 * pbar(K+1) - ES( theta_l(J+1, K+1) * pi_0(K+1) ) ) ) ) ) &
       / 4
+  end do
+end do
+
+! define the possible categories
+onec = [ 1, 2, 4, 8 ]
+threec = [ 7, 11, 13, 14 ]
+two_adj = [ 3, 6, 9, 12 ]
+two_opp = [ 5, 10 ]
+
+! now go over each box and check the vertices
+do J = 1, jt
+  do K = 1, kt
+    a = interp_d(J, K+1) >= 0
+    b = interp_d(J+1, K+1) >= 0
+    c = interp_d(J+1, K) >= 0
+    d = interp_d(J, K) >= 0
+    
+    mcode = 0
+    if a then
+      mcode = mcode + 8
+    end if
+    if b then
+      mcode = mcode + 4
+    end if
+    if c then
+      mcode = mcode + 2
+    end if
+    if d then
+      mcode = mcode + 1
+    end if
+    
+    if (mcode == 0) then
+      cldarea(J, K, 2) = 0
+    end if
+    if (mcode == 15) then
+      cldarea(J, K, 2) = 1
+    end if
+    
   end do
 end do
 
