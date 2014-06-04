@@ -11,10 +11,9 @@ real lr_edges ( jt+1, kt )
 real tb_edges ( jt, kt+1 )
 
 ! make the interp_d grid
-! must choose what the real number d is based off of
-! such that d >= 0 is "convective" and d < 0 not
+! must choose what the real number d is such that d >= 0 is "convective" and d < 0 not
 ! for example, d cannot be set equal to qc because qc cannot have values less than zero
-! after Dawe and Austin (2011) we define d as q_diff which is the excess of total water
+! after Dawe and Austin (2011) I define d as q_diff which is the excess of total water
 ! over the saturation specific humidity
 do J = 1, jt+1
   do K = 1, kt+1
@@ -61,6 +60,55 @@ do J = 1, jt
       cldarea(J, K, 2) = 1
     end if
     
+    ! First category
+    if (ANY(mcode == onec)) then
+      ! go through each one
+      if (mcode == 1) then ! it's d
+        lr_edges(J,K) = - interp_d(J, K) * dz / ( interp_d(J, K+1) - interp_d(J, K)  )
+        tb_edges(J,K) = - interp_d(J, K) * dy / ( interp_d(J+1, K) - interp_d(J, K)  )
+        cldarea(J,K) = 0.5 * lr_edges(J,K) * tb_edges(J,K) / ( dy * dz )
+      end if
+      if (mcode == 2) then ! it's c
+        lr_edges(J+1,K) = - interp_d(J+1, K) * dz / ( interp_d(J+1, K+1) - interp_d(J+1, K)  )
+        tb_edges(J,K) = - interp_d(J+1, K) * dy / ( interp_d(J, K) - interp_d(J+1, K)  )
+        cldarea(J,K) = 0.5 * lr_edges(J+1,K) * tb_edges(J,K) / ( dy * dz )
+      end if
+      if (mcode == 4) then ! it's b
+        lr_edges(J+1,K) = - interp_d(J+1, K+1) * dz / ( interp_d(J+1, K) - interp_d(J+1, K+1)  )
+        tb_edges(J,K+1) = - interp_d(J+1, K+1) * dy / ( interp_d(J, K+1) - interp_d(J+1, K+1)  )
+        cldarea(J,K) = 0.5 * lr_edges(J+1,K) * tb_edges(J,K+1) / ( dy * dz )
+      end if
+      if (mcode == 8) then ! it's a
+        lr_edges(J,K) = - interp_d(J, K+1) * dz / ( interp_d(J, K) - interp_d(J, K+1)  )
+        tb_edges(J,K+1) = - interp_d(J, K+1) * dy / ( interp_d(J+1, K+1) - interp_d(J, K+1)  )
+        cldarea(J,K) = 0.5 * lr_edges(J,K) * tb_edges(J,K+1) / ( dy * dz )
+      end if
+    end if ! any onec
+    
+    ! Second category
+    if (ANY(mcode == threec)) then ! same as before, just have to change sign
+      ! go through each one
+      if (mcode == 14) then ! it's d
+        lr_edges(J,K) = interp_d(J, K) * dz / ( interp_d(J, K+1) - interp_d(J, K)  )
+        tb_edges(J,K) = interp_d(J, K) * dy / ( interp_d(J+1, K) - interp_d(J, K)  )
+        cldarea(J,K) = 0.5 * lr_edges(J,K) * tb_edges(J,K) / ( dy * dz )
+      end if
+      if (mcode == 13) then ! it's c
+        lr_edges(J+1,K) = interp_d(J+1, K) * dz / ( interp_d(J+1, K+1) - interp_d(J+1, K)  )
+        tb_edges(J,K) = interp_d(J+1, K) * dy / ( interp_d(J, K) - interp_d(J+1, K)  )
+        cldarea(J,K) = 0.5 * lr_edges(J+1,K) * tb_edges(J,K) / ( dy * dz )
+      end if
+      if (mcode == 11) then ! it's b
+        lr_edges(J+1,K) = interp_d(J+1, K+1) * dz / ( interp_d(J+1, K) - interp_d(J+1, K+1)  )
+        tb_edges(J,K+1) = interp_d(J+1, K+1) * dy / ( interp_d(J, K+1) - interp_d(J+1, K+1)  )
+        cldarea(J,K) = 0.5 * lr_edges(J+1,K) * tb_edges(J,K+1) / ( dy * dz )
+      end if
+      if (mcode == 7) then ! it's a
+        lr_edges(J,K) = interp_d(J, K+1) * dz / ( interp_d(J, K) - interp_d(J, K+1)  )
+        tb_edges(J,K+1) = interp_d(J, K+1) * dy / ( interp_d(J+1, K+1) - interp_d(J, K+1)  )
+        cldarea(J,K) = 0.5 * lr_edges(J,K) * tb_edges(J,K+1) / ( dy * dz )
+      end if
+    end if ! any threec
+    
   end do
 end do
-
