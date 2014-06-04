@@ -1,14 +1,11 @@
 SUBROUTINE entrainment ()
 
-use global_vars
- 
+use global_vars ! in particular, cldarea(jt, kt) and udotw(jt, kt)
 implicit none
 
-! the 4 main arrays
-
-real interp_d ( jt+1, kt+1 )
-real lr_edges ( jt+1, kt )
-real tb_edges ( jt, kt+1 )
+real interp_d ( jt+1, kt+1 ) ! the convective condition
+real lr_edges ( jt+1, kt ) ! left - right grid edges
+real tb_edges ( jt, kt+1 ) ! top - bottom grid edges
 
 ! make the interp_d grid
 ! must choose what the real number d is such that d >= 0 is "convective" and d < 0 not
@@ -25,7 +22,7 @@ do J = 1, jt+1
   end do
 end do
 
-! define the possible categories
+! define the possible categories, besides all or nothing
 onec = [ 1, 2, 4, 8 ]
 threec = [ 7, 11, 13, 14 ]
 two_adj = [ 3, 6, 9, 12 ]
@@ -53,62 +50,139 @@ do J = 1, jt
       mcode = mcode + 1
     end if
     
-    if (mcode == 0) then
-      cldarea(J, K, 2) = 0
-    end if
+    ! all
     if (mcode == 15) then
       cldarea(J, K, 2) = 1
     end if
-    
-    ! First category
+    ! or nothing
+    if (mcode == 0) then
+      cldarea(J, K, 2) = 0
+    end if
+
+    ! one corner
     if (ANY(mcode == onec)) then
       ! go through each one
       if (mcode == 1) then ! it's d
         lr_edges(J,K) = - interp_d(J, K) * dz / ( interp_d(J, K+1) - interp_d(J, K)  )
         tb_edges(J,K) = - interp_d(J, K) * dy / ( interp_d(J+1, K) - interp_d(J, K)  )
-        cldarea(J,K) = 0.5 * lr_edges(J,K) * tb_edges(J,K) / ( dy * dz )
+        cldarea(J,K) = 0.5 * lr_edges(J,K) * tb_edges(J,K) 
+        udotw(J,K) = lr_edges(J,K) * v(J+1,K+1) + tb_edges(J,K) * w(J+1, K+1)
+        RETURN
       end if
       if (mcode == 2) then ! it's c
         lr_edges(J+1,K) = - interp_d(J+1, K) * dz / ( interp_d(J+1, K+1) - interp_d(J+1, K)  )
         tb_edges(J,K) = - interp_d(J+1, K) * dy / ( interp_d(J, K) - interp_d(J+1, K)  )
-        cldarea(J,K) = 0.5 * lr_edges(J+1,K) * tb_edges(J,K) / ( dy * dz )
+        cldarea(J,K) = 0.5 * lr_edges(J+1,K) * tb_edges(J,K)
+        udotw(J,K) = lr_edges(J+1,K) * v(J+2,K+1) + tb_edges(J,K) * w(J+1, K+1)
+        RETURN
       end if
       if (mcode == 4) then ! it's b
         lr_edges(J+1,K) = - interp_d(J+1, K+1) * dz / ( interp_d(J+1, K) - interp_d(J+1, K+1)  )
         tb_edges(J,K+1) = - interp_d(J+1, K+1) * dy / ( interp_d(J, K+1) - interp_d(J+1, K+1)  )
-        cldarea(J,K) = 0.5 * lr_edges(J+1,K) * tb_edges(J,K+1) / ( dy * dz )
+        cldarea(J,K) = 0.5 * lr_edges(J+1,K) * tb_edges(J,K+1)
+        udotw(J,K) = lr_edges(J+1,K) * v(J+2,K+1) + tb_edges(J,K+1) * w(J+1, K+2)
+        RETURN
       end if
       if (mcode == 8) then ! it's a
         lr_edges(J,K) = - interp_d(J, K+1) * dz / ( interp_d(J, K) - interp_d(J, K+1)  )
         tb_edges(J,K+1) = - interp_d(J, K+1) * dy / ( interp_d(J+1, K+1) - interp_d(J, K+1)  )
-        cldarea(J,K) = 0.5 * lr_edges(J,K) * tb_edges(J,K+1) / ( dy * dz )
+        cldarea(J,K) = 0.5 * lr_edges(J,K) * tb_edges(J,K+1)
+        udotw(J,K) = lr_edges(J,K) * v(J+1,K+1) + tb_edges(J,K+1) * w(J+1, K+2)
+        RETURN
       end if
     end if ! any onec
     
-    ! Second category
-    if (ANY(mcode == threec)) then ! same as before, just have to change sign
+    ! three corners
+    if (ANY(mcode == threec)) then ! same as before, just have to find inverse
       ! go through each one
       if (mcode == 14) then ! it's d
         lr_edges(J,K) = interp_d(J, K) * dz / ( interp_d(J, K+1) - interp_d(J, K)  )
         tb_edges(J,K) = interp_d(J, K) * dy / ( interp_d(J+1, K) - interp_d(J, K)  )
-        cldarea(J,K) = 0.5 * lr_edges(J,K) * tb_edges(J,K) / ( dy * dz )
+        cldarea(J,K) = ( dy * dz ) - 0.5 * lr_edges(J,K) * tb_edges(J,K) 
+        udotw(J,K) = ( dz - lr_edges(J,K) ) * v(J+1,K+1) + ( dy - tb_edges(J,K) ) * w(J+1, K+1) + dy * v(J+2,K+1) + dz * w(J+1,K+2)
+        RETURN
       end if
       if (mcode == 13) then ! it's c
         lr_edges(J+1,K) = interp_d(J+1, K) * dz / ( interp_d(J+1, K+1) - interp_d(J+1, K)  )
         tb_edges(J,K) = interp_d(J+1, K) * dy / ( interp_d(J, K) - interp_d(J+1, K)  )
-        cldarea(J,K) = 0.5 * lr_edges(J+1,K) * tb_edges(J,K) / ( dy * dz )
+        cldarea(J,K) = ( dy * dz ) -  0.5 * lr_edges(J+1,K) * tb_edges(J,K)
+        udotw(J,K) = ( dz - lr_edges(J+1,K) ) * v(J+2,K+1) + ( dy - tb_edges(J,K) ) * w(J+1, K+1) + dy * v(J+1,K+1) + dz * w(J+1,K+2)
+        RETURN
       end if
       if (mcode == 11) then ! it's b
         lr_edges(J+1,K) = interp_d(J+1, K+1) * dz / ( interp_d(J+1, K) - interp_d(J+1, K+1)  )
         tb_edges(J,K+1) = interp_d(J+1, K+1) * dy / ( interp_d(J, K+1) - interp_d(J+1, K+1)  )
-        cldarea(J,K) = 0.5 * lr_edges(J+1,K) * tb_edges(J,K+1) / ( dy * dz )
+        cldarea(J,K) = ( dy * dz ) - 0.5 * lr_edges(J+1,K) * tb_edges(J,K+1) 
+        udotw(J,K) = ( dz - lr_edges(J+1,K) ) * v(J+2,K+1) + ( dy - tb_edges(J,K+1) ) * w(J+1, K+2) + dy * v(J+1,K+1) + dz * w(J+1,K+1)
+        RETURN
       end if
       if (mcode == 7) then ! it's a
         lr_edges(J,K) = interp_d(J, K+1) * dz / ( interp_d(J, K) - interp_d(J, K+1)  )
         tb_edges(J,K+1) = interp_d(J, K+1) * dy / ( interp_d(J+1, K+1) - interp_d(J, K+1)  )
-        cldarea(J,K) = 0.5 * lr_edges(J,K) * tb_edges(J,K+1) / ( dy * dz )
+        cldarea(J,K) =  ( dy * dz ) - 0.5 * lr_edges(J,K) * tb_edges(J,K+1)
+        udotw(J,K) = ( dz - lr_edges(J,K) ) * v(J+1,K+1) + ( dy - tb_edges(J,K+1) ) * w(J+1, K+2) + dy * v(J+2,K+1) + dz * w(J+1,K+1)
+        RETURN
       end if
     end if ! any threec
     
+    ! two corners, adjacent
+    if (ANY(mcode == two_adj) then
+      if (mcode == 3) then ! its c and d
+        ! from d to a
+        lr_edges(J,K) = - interp_d(J, K) * dz / ( interp_d(J,K) - interp_d(J, K+1) )
+        ! from c to b
+        lr_edges(J+1,K) =  - interp_d(J+1, K) * dz / ( interp_d(J+1,K+1) - interp_d(J+1, K) )
+        cldarea(J,K) = 0.5 * dy * lr_edges(J,K) * lr_edges(J+1,K) / ( dy * dz )
+      end if
+      if (mcode == 12) then ! its a and b, just invert
+        ! from d to a
+        lr_edges(J,K) = dz - interp_d(J, K) * dz / ( interp_d(J,K) - interp_d(J, K+1) )
+        ! from c to b
+        lr_edges(J+1,K) = dz - interp_d(J+1, K) * dz / ( interp_d(J+1,K+1) - interp_d(J+1, K) )
+        cldarea(J,K) = 0.5 * dy * lr_edges(J,K) * lr_edges(J+1,K) / ( dy * dz )
+      end if
+      if (mcode == 9) then ! its a and d
+        ! from d to c
+        tb_edges(J,K) = - interp_d(J, K) * dy / ( interp_d(J+1,K) - interp_d(J, K) )
+        ! from a to b
+        tb_edges(J,K+1) =  - interp_d(J, K+1) * dy / ( interp_d(J+1,K+1) - interp_d(J, K+1) )
+        cldarea(J,K) = 0.5 * dz * tb_edges(J,K) * tb_edges(J,K+1) / ( dy * dz )
+      end if
+      if (mcode == 6) then ! its b and c, just invert
+        ! from d to c
+        tb_edges(J,K) = dy - interp_d(J, K) * dy / ( interp_d(J+1,K) - interp_d(J, K) )
+        ! from a to b
+        tb_edges(J,K+1) = dy - interp_d(J, K+1) * dy / ( interp_d(J+1,K+1) - interp_d(J, K+1) )
+        cldarea(J,K) = 0.5 * dz * tb_edges(J,K) * tb_edges(J,K+1) / ( dy * dz )
+      end if
+    end if ! two adjacent
+    
+    ! two corners, opposite
+    if (ANY(mcode == two_opp)) then
+      if (mcode == 5) then ! b and d
+        ! from b to c
+        lr_edges(J+1,K) = - interp_d(J+1, K+1) * dz / ( interp_d(J+1, K) - interp_d(J+1, K+1)  )
+        ! b to a
+        tb_edges(J,K+1) = - interp_d(J+1, K+1) * dy / ( interp_d(J, K+1) - interp_d(J+1, K+1)  )
+        ! d to a
+        lr_edges(J,K) = - interp_d(J, K) * dz / ( interp_d(J, K+1) - interp_d(J, K)  )
+        ! d to c
+        tb_edges(J,K) = - interp_d(J, K) * dy / ( interp_d(J+1, K) - interp_d(J, K)  )
+        cldarea(J,K) = 0.5 * ( lr_edges(J+1,K) * tb_edges(J,K+1) + lr_edges(J,K) * tb_edges(J,K) ) / ( dy * dz )
+      end if
+      if (mcode == 10) then ! a and c
+        ! from b to c
+        lr_edges(J+1,K) = dz - interp_d(J+1, K+1) * dz / ( interp_d(J+1, K) - interp_d(J+1, K+1)  )
+        ! b to a
+        tb_edges(J,K+1) = dy - interp_d(J+1, K+1) * dy / ( interp_d(J, K+1) - interp_d(J+1, K+1)  )
+        ! d to a
+        lr_edges(J,K) = dz - interp_d(J, K) * dz / ( interp_d(J, K+1) - interp_d(J, K)  )
+        ! d to c
+        tb_edges(J,K) = dy - interp_d(J, K) * dy / ( interp_d(J+1, K) - interp_d(J, K)  )
+        cldarea(J,K) = 0.5 * ( lr_edges(J+1,K) * tb_edges(J,K+1) + lr_edges(J,K) * tb_edges(J,K) )  / ( dy * dz )
+      end if
+    end if
   end do
 end do
+
+
