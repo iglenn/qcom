@@ -25,6 +25,7 @@ real, dimension(1:kt+2):: theta_0, theta_v0
 real, dimension(1:kt+2):: qv_0
 real, dimension(1:kw+2):: pi_0
 real, dimension(1:kw+2):: pbar
+real, dimension(1:kt):: E, D
 
 ! large 2D arrays
 real, dimension(1:jt+2, 1:kt+2) :: theta_l, theta
@@ -40,8 +41,8 @@ real, dimension(1:jt+2, 1:kw+2, 1:2) :: fw
 real, dimension(1:jt+2, 1:kw+2, 1:2) :: fv
 
 real, dimension(1:jt, 1:kt, 1:2) :: cldarea
-real, dimension(1:jt, 1:kt) :: udotw
-real, dimension(1:jt, 1:kt) :: E, D
+real, dimension(1:jt, 1:kt) :: udotw ! the 2nd term on RHS of Dawe and Austin (2011) equation (10)
+real, dimension(1:jt, 1:kt) :: EmD ! entrainment minus detrainment
 
 ! physical constants
 real, parameter :: g = 9.81 ! gravity, m/s2
@@ -77,7 +78,7 @@ IMPLICIT NONE
 !     pgf90 -o qcom qcom.f90 
 !     ./qcom
 
-integer, parameter rcount = 1 ! record counter for writing direct access
+integer rcount ! record counter for writing direct access
 
 write(*,*) "horizontal resolution="
 write(*,*) jt
@@ -103,6 +104,13 @@ form='unformatted', access='direct', recl = (jt+2)*(kt+2)*4, action='write')
 open(unit = 55, file='gate2D_bub_602x122_6km_pbar.dat', &
 form='unformatted', access='direct', recl = (kt+2)*4, action='write')
 
+open(unit = 56, file='gate2D_bub_602x122_6km_EmD.dat', &
+form='unformatted', access='direct', recl = (jt)*(kt)*4, action='write')
+open(unit = 57, file='gate2D_bub_602x122_6km_Esum.dat', &
+form='unformatted', access='direct', recl = (kt)*4, action='write')
+open(unit = 58, file='gate2D_bub_602x122_6km_Dsum.dat', &
+form='unformatted', access='direct', recl = (kt)*4, action='write')
+
 
 ! begin
 ITT = 1 ! itt is time step index
@@ -117,12 +125,13 @@ CALL bound
 CALL perturb
 
 ! write initial state of variables
-write(50, rec = ITT) qc
-write(51, rec = ITT) qw
-write(52, rec = ITT) theta_l
-write(53, rec = ITT) w
-write(54, rec = ITT) pi_1
-write(55, rec = ITT) pbar
+rcount = 1
+write(50, rec = rcount) qc
+write(51, rec = rcount) qw
+write(52, rec = rcount) theta_l
+write(53, rec = rcount) w
+write(54, rec = rcount) pi_1
+write(55, rec = rcount) pbar
 
 ! USE FORWARD SCHEME TO do first step
 ! ADAMS - BASHFORTH coefficients A and B
@@ -134,6 +143,9 @@ N2 = MOD ( ITT - 1, 2 ) + 1
 CALL rcalc ! calculate forcing terms
 CALL AB ! update variables using a time scheme
 CALL bound
+
+! initial call to set up entrainment
+CALL entrainment
 
 ! ADAMS - BASHFORTH TWO - LEVEL SCHEME
 
@@ -158,17 +170,31 @@ CALL rcalc ! calculate forcing terms
 CALL AB ! update variables using a time scheme
 CALL bound
 
+cldarea( 1:jt, 1:kt, 1 ) = cldarea( 1:jt, 1:kt, 2)
+CALL entrainment
+EmD(1:jt, 1:kt) = ( ( cldarea(1:jt, 1:kt, 2) - cldarea(1:jt, 1:kt, 1) ) / dt ) + udotw
+! EmD is instantaneous, so keep a summed profile of E and D for total
+do K = 1, kt
+    E(K) = E(K) + SUM( EmD(1:jt, K), MASK = EmD(1:jt,K) > 0.)
+    D(K) = D(K) + SUM( EmD(1:jt, K), MASK = EmD(1:jt,K) < 0.)
+end do
+
 ! write variables every 60 seconds
 if (MOD(ITT,600)==0) then
 rcount = rcount + 1
-! write initial state of variables
+! write state of variables
 write(50, rec = rcount) qc
 write(51, rec = rcount) qw
 write(52, rec = rcount) theta_l
 write(53, rec = rcount) w
 write(54, rec = rcount) pi_1
 write(55, rec = rcount) pbar
-
+write(56, rec = rcount) EmD
+write(57, rec = rcount) E
+write(58, rec = rcount) D
+! reset E and D so they can sum up again
+E(1:kt) = 0.
+D(1:kt) = 0.
 end if ! write
 
 end do ! time loop
@@ -249,6 +275,12 @@ fw(1:jt+2, 1:kt+2, 1:2) = 0.
 ftheta_l(1:jt+2, 1:kt+2, 1:2) = 0.
 fqw(1:jt+2, 1:kt+2, 1:2) = 0.
 fpi_1(1:jt+2, 1:kt+2, 1:2) = 0.
+
+cldarea(1:jt, 1:kt, 1:2) = 0.
+udotw(1:jt, 1:kt) = 0.
+EmD(1:jt, 1:kt) = 0.
+E(1:kt) = 0.
+D(1:kt) = 0.
 
 END SUBROUTINE init
 
@@ -571,18 +603,20 @@ IMPLICIT NONE
 !
 !     LOWE'S FORMULA FOR SATURATION VAPOR PRESSURE ( PA ).
 !     T IS IN DEGREES KELVIN.
+
+real, intent(OUT) :: ES
 real, intent(IN) :: T
 real TC, X
 integer jj
 real, dimension(1:7) :: C
 
-C = ( /6.107800, &
+C = [  6.107800, &
        4.436519E-01, &
        1.428946E-02, &
        2.650648E-04, &
        3.031240E-06, &
        2.034081E-08, &
-       6.136821E-11/ )
+       6.136821E-11 ]
        
 TC = T - 273.16
 if ( TC .LT. - 50. ) then
@@ -607,18 +641,19 @@ IMPLICIT NONE
 !     ES IS IN PASCALS. T IS IN DEGREES KELVIN.
 !
 
-real,intent(IN) :: T
+real, intent(OUT) :: DESDT
+real, intent(IN) :: T
 real TC, X
 integer jj
 real, dimension(1:7) :: D
 
-D = ( /4.438100E-01, &
+D = [  4.438100E-01, &
        2.857003E-02, &
        7.938054E-04, &
        1.215215E-05, &
        1.036561E-07, &
        3.532422E-10, &
-     - 7.090245E-13/ )
+     - 7.090245E-13 ]
 
 TC = T - 273.16
 if ( TC .LT. - 50. ) then
@@ -650,6 +685,11 @@ integer, dimension(1:4, 1) :: onec, threec, two_adj
 integer, dimension(1:2, 1) :: two_opp
 integer mcode
 logical a, b, c, d
+
+! initialize
+interp_d(1:jt+1, 1:kt+1) = 0.
+lr_edges(1:jt+1, 1:kt) = 0.
+tb_edges(1:jt, 1:kt+1) = 0.
 
 ! make the interp_d grid
 ! must choose what the real number d is such that d >= 0 is "convective" and d < 0 not
