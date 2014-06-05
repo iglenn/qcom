@@ -52,7 +52,7 @@ do J = 1, jt
     
     ! all
     if (mcode == 15) then
-      cldarea(J, K, 2) = 1
+      cldarea(J, K, 2) = ( dy * dz )
     end if
     ! or nothing
     if (mcode == 0) then
@@ -99,28 +99,28 @@ do J = 1, jt
         lr_edges(J,K) = interp_d(J, K) * dz / ( interp_d(J, K+1) - interp_d(J, K)  )
         tb_edges(J,K) = interp_d(J, K) * dy / ( interp_d(J+1, K) - interp_d(J, K)  )
         cldarea(J,K) = ( dy * dz ) - 0.5 * lr_edges(J,K) * tb_edges(J,K) 
-        udotw(J,K) = ( dz - lr_edges(J,K) ) * v(J+1,K+1) + ( dy - tb_edges(J,K) ) * w(J+1, K+1) + dy * v(J+2,K+1) + dz * w(J+1,K+2)
+        udotw(J,K) = ( dz - lr_edges(J,K) ) * v(J+1,K+1) + ( dy - tb_edges(J,K) ) * w(J+1, K+1) + dz * v(J+2,K+1) + dy * w(J+1,K+2)
         RETURN
       end if
       if (mcode == 13) then ! it's c
         lr_edges(J+1,K) = interp_d(J+1, K) * dz / ( interp_d(J+1, K+1) - interp_d(J+1, K)  )
         tb_edges(J,K) = interp_d(J+1, K) * dy / ( interp_d(J, K) - interp_d(J+1, K)  )
         cldarea(J,K) = ( dy * dz ) -  0.5 * lr_edges(J+1,K) * tb_edges(J,K)
-        udotw(J,K) = ( dz - lr_edges(J+1,K) ) * v(J+2,K+1) + ( dy - tb_edges(J,K) ) * w(J+1, K+1) + dy * v(J+1,K+1) + dz * w(J+1,K+2)
+        udotw(J,K) = ( dz - lr_edges(J+1,K) ) * v(J+2,K+1) + ( dy - tb_edges(J,K) ) * w(J+1, K+1) + dz * v(J+1,K+1) + dy * w(J+1,K+2)
         RETURN
       end if
       if (mcode == 11) then ! it's b
         lr_edges(J+1,K) = interp_d(J+1, K+1) * dz / ( interp_d(J+1, K) - interp_d(J+1, K+1)  )
         tb_edges(J,K+1) = interp_d(J+1, K+1) * dy / ( interp_d(J, K+1) - interp_d(J+1, K+1)  )
         cldarea(J,K) = ( dy * dz ) - 0.5 * lr_edges(J+1,K) * tb_edges(J,K+1) 
-        udotw(J,K) = ( dz - lr_edges(J+1,K) ) * v(J+2,K+1) + ( dy - tb_edges(J,K+1) ) * w(J+1, K+2) + dy * v(J+1,K+1) + dz * w(J+1,K+1)
+        udotw(J,K) = ( dz - lr_edges(J+1,K) ) * v(J+2,K+1) + ( dy - tb_edges(J,K+1) ) * w(J+1, K+2) + dz * v(J+1,K+1) + dy * w(J+1,K+1)
         RETURN
       end if
       if (mcode == 7) then ! it's a
         lr_edges(J,K) = interp_d(J, K+1) * dz / ( interp_d(J, K) - interp_d(J, K+1)  )
         tb_edges(J,K+1) = interp_d(J, K+1) * dy / ( interp_d(J+1, K+1) - interp_d(J, K+1)  )
         cldarea(J,K) =  ( dy * dz ) - 0.5 * lr_edges(J,K) * tb_edges(J,K+1)
-        udotw(J,K) = ( dz - lr_edges(J,K) ) * v(J+1,K+1) + ( dy - tb_edges(J,K+1) ) * w(J+1, K+2) + dy * v(J+2,K+1) + dz * w(J+1,K+1)
+        udotw(J,K) = ( dz - lr_edges(J,K) ) * v(J+1,K+1) + ( dy - tb_edges(J,K+1) ) * w(J+1, K+2) + dz * v(J+2,K+1) + dy * w(J+1,K+1)
         RETURN
       end if
     end if ! any threec
@@ -132,28 +132,36 @@ do J = 1, jt
         lr_edges(J,K) = - interp_d(J, K) * dz / ( interp_d(J,K) - interp_d(J, K+1) )
         ! from c to b
         lr_edges(J+1,K) =  - interp_d(J+1, K) * dz / ( interp_d(J+1,K+1) - interp_d(J+1, K) )
-        cldarea(J,K) = 0.5 * dy * lr_edges(J,K) * lr_edges(J+1,K) / ( dy * dz )
+        cldarea(J,K) = 0.5 * dy * lr_edges(J,K) * lr_edges(J+1,K)
+        udotw(J,K) = lr_edges(J,K) * v(J+1,K+1) + lr_edges(J+1,K) * v(J+2,K+1) + dy * w(J+1,K+1)
+        RETURN
       end if
       if (mcode == 12) then ! its a and b, just invert
         ! from d to a
         lr_edges(J,K) = dz - interp_d(J, K) * dz / ( interp_d(J,K) - interp_d(J, K+1) )
         ! from c to b
         lr_edges(J+1,K) = dz - interp_d(J+1, K) * dz / ( interp_d(J+1,K+1) - interp_d(J+1, K) )
-        cldarea(J,K) = 0.5 * dy * lr_edges(J,K) * lr_edges(J+1,K) / ( dy * dz )
+        cldarea(J,K) = 0.5 * dy * lr_edges(J,K) * lr_edges(J+1,K)
+        udotw(J,K) = lr_edges(J,K) * v(J+1,K+1) + lr_edges(J+1,K) * v(J+2,K+1) + dy * w(J+1,K+2)
+        RETURN
       end if
       if (mcode == 9) then ! its a and d
         ! from d to c
         tb_edges(J,K) = - interp_d(J, K) * dy / ( interp_d(J+1,K) - interp_d(J, K) )
         ! from a to b
         tb_edges(J,K+1) =  - interp_d(J, K+1) * dy / ( interp_d(J+1,K+1) - interp_d(J, K+1) )
-        cldarea(J,K) = 0.5 * dz * tb_edges(J,K) * tb_edges(J,K+1) / ( dy * dz )
+        cldarea(J,K) = 0.5 * dz * tb_edges(J,K) * tb_edges(J,K+1)
+        udotw(J,K) = tb_edges(J,K) * w(J+1,K+1) + tb_edges(J,K+1) * w(J+1,K+2) + dz * v(J+1,K+1)
+        RETURN
       end if
       if (mcode == 6) then ! its b and c, just invert
         ! from d to c
         tb_edges(J,K) = dy - interp_d(J, K) * dy / ( interp_d(J+1,K) - interp_d(J, K) )
         ! from a to b
         tb_edges(J,K+1) = dy - interp_d(J, K+1) * dy / ( interp_d(J+1,K+1) - interp_d(J, K+1) )
-        cldarea(J,K) = 0.5 * dz * tb_edges(J,K) * tb_edges(J,K+1) / ( dy * dz )
+        cldarea(J,K) = 0.5 * dz * tb_edges(J,K) * tb_edges(J,K+1)
+        udotw(J,K) = tb_edges(J,K) * w(J+1,K+1) + tb_edges(J,K+1) * w(J+1,K+2) + dz * v(J+2,K+1)
+        RETURN
       end if
     end if ! two adjacent
     
@@ -168,7 +176,9 @@ do J = 1, jt
         lr_edges(J,K) = - interp_d(J, K) * dz / ( interp_d(J, K+1) - interp_d(J, K)  )
         ! d to c
         tb_edges(J,K) = - interp_d(J, K) * dy / ( interp_d(J+1, K) - interp_d(J, K)  )
-        cldarea(J,K) = 0.5 * ( lr_edges(J+1,K) * tb_edges(J,K+1) + lr_edges(J,K) * tb_edges(J,K) ) / ( dy * dz )
+        cldarea(J,K) = 0.5 * ( lr_edges(J+1,K) * tb_edges(J,K+1) + lr_edges(J,K) * tb_edges(J,K) )
+        udotw(J,K) = lr_edges(J,K) * v(J+1,K+1) + lr_edges(J+1,K) * v(J+2,K+1) + tb_edges(J,K) * w(J+1,K+1) + tb_edges(J,K+1) * w(J+1,K+2)
+        RETURN
       end if
       if (mcode == 10) then ! a and c
         ! from b to c
@@ -179,7 +189,9 @@ do J = 1, jt
         lr_edges(J,K) = dz - interp_d(J, K) * dz / ( interp_d(J, K+1) - interp_d(J, K)  )
         ! d to c
         tb_edges(J,K) = dy - interp_d(J, K) * dy / ( interp_d(J+1, K) - interp_d(J, K)  )
-        cldarea(J,K) = 0.5 * ( lr_edges(J+1,K) * tb_edges(J,K+1) + lr_edges(J,K) * tb_edges(J,K) )  / ( dy * dz )
+        cldarea(J,K) = 0.5 * ( lr_edges(J+1,K) * tb_edges(J,K+1) + lr_edges(J,K) * tb_edges(J,K) )
+        udotw(J,K) = lr_edges(J,K) * v(J+1,K+1) + lr_edges(J+1,K) * v(J+2,K+1) + tb_edges(J,K) * w(J+1,K+1) + tb_edges(J,K+1) * w(J+1,K+2)
+        RETURN
       end if
     end if
   end do
