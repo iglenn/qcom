@@ -193,8 +193,9 @@ do J = 1, jt
         udotw(J,K) = lr_edges(J,K) * v(J+1,K+1) + lr_edges(J+1,K) * v(J+2,K+1) + tb_edges(J,K) * w(J+1,K+1) + tb_edges(J,K+1) * w(J+1,K+2)
         RETURN
       end if
-    end if
-  end do
-end do
+    end if ! any two opposite
+    
+  end do ! K
+end do ! J
 
 
