@@ -205,4 +205,4 @@ do J = 1, jt
   end do ! K
 end do ! J
 
-
+END SUBROUTINE entrainment
