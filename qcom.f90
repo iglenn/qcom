@@ -325,6 +325,16 @@ qw(iyp,izp) = supersat * ( 0.622 * esbub / ( 100 * pbar(izp) - esbub ) )
 end do
 end do
 
+! constant source
+!do iyp = 280, 320
+!  theta_l(iyp, 2) = theta_0(2) + 2.0
+!end do
+!do iyp = 80, 120
+!  theta_l(iyp, kt) = theta_0(2) - 2.0
+!end do
+!do iyp = 480, 520
+!  theta_l(iyp, kt) = theta_0(2) - 2.0
+!end do
 
 ! randomly perturb a section
 !CALL RANDOM_SEED ! initializes the PRNG
